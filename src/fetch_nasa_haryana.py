@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 import time
+from datetime import datetime
 
 # Haryana district lat/lon
 districts = {
@@ -19,41 +20,66 @@ districts = {
     "Ambala": (30.38, 76.78),
     "Yamunanagar": (30.12, 77.28),
     "Kurukshetra": (29.97, 76.85),
-    "Palwal": (28.15, 77.33)
+    "Palwal": (28.15, 77.33),
 }
 
 def fetch_nasa(lat, lon):
+    """Fetch hourly NASA POWER data for given lat/lon."""
     url = (
-        "https://power.larc.nasa.gov/api/temporal/daily/point"
-        f"?parameters=ALLSKY_SFC_SW_DWN,T2M,RH2M,CLRSKY_SFC_SW_DWN"
+        "https://power.larc.nasa.gov/api/temporal/hourly/point"
+        f"?parameters=ALLSKY_SFC_SW_DWN,T2M,RH2M,WS2M,CLOUD_AMT,PRECTOTCORR"
         f"&community=RE&longitude={lon}&latitude={lat}"
-        "&start=2015&end=2023&format=JSON"
+        "&start=20241001&end=20241107&format=JSON"
     )
-    r = requests.get(url)
-    if r.status_code != 200:
+    try:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        props = r.json().get("properties", {})
+        params = props.get("parameter", {})
+        if not params:
+            return None
+
+        # Flatten hourly keys like "2024110105" into datetime
+        records = []
+        for i, key in enumerate(params["ALLSKY_SFC_SW_DWN"].keys()):
+            try:
+                t = datetime.strptime(key, "%Y%m%d%H")
+                row = {
+                    "time": t,
+                    "ghi": params["ALLSKY_SFC_SW_DWN"][key],
+                    "temp": params["T2M"][key],
+                    "humidity": params["RH2M"][key],
+                    "wind": params["WS2M"][key],
+                    "cloud": params["CLOUD_AMT"][key],
+                    "rain": params["PRECTOTCORR"][key],
+                }
+                records.append(row)
+            except Exception:
+                continue
+
+        df = pd.DataFrame(records)
+        df["lat"] = lat
+        df["lon"] = lon
+        return df if not df.empty else None
+    except Exception as e:
+        print(f"[WARN] Failed for {lat},{lon}: {e}")
         return None
-    data = r.json()["properties"]["parameter"]
-    df = pd.DataFrame({
-        "ghi": data["ALLSKY_SFC_SW_DWN"],
-        "clear_sky_ghi": data["CLRSKY_SFC_SW_DWN"],
-        "temp": data["T2M"],
-        "humidity": data["RH2M"],
-    })
-    return df
 
 full_df = []
-
 for district, (lat, lon) in districts.items():
-    print(f"Fetching NASA data for {district}...")
+    print(f"🔹 Fetching NASA hourly data for {district} ({lat},{lon}) ...")
     df = fetch_nasa(lat, lon)
     if df is None:
-        print(f"Failed to fetch {district}")
+        print(f"⚠️  Skipped {district}, no data returned.")
         continue
     df["district"] = district
     full_df.append(df)
-    time.sleep(1)  # avoid rate limit
+    time.sleep(1)
 
-final = pd.concat(full_df)
-final.to_csv("data/haryana_nasa_daily.csv", index=False)
-
-print("✅ Haryana NASA dataset saved to data/haryana_nasa_daily.csv")
+if not full_df:
+    print("❌ No data fetched — check API response or network.")
+else:
+    final = pd.concat(full_df, ignore_index=True)
+    out_path = "data/haryana_nasa_hourly.csv"
+    final.to_csv(out_path, index=False)
+    print(f"✅ Saved {len(final)} hourly records -> {out_path}")

@@ -1,0 +1,27 @@
+# Core scientific and data libraries
+numpy
+pandas
+scikit-learn
+matplotlib
+
+# Deep learning
+torch
+torchvision
+torchaudio
+
+# Web / APIs
+requests
+python-dotenv
+
+# Satellite and climate data processing
+xarray
+netCDF4
+h5netcdf
+
+# Optional (for plotting, analysis)
+seaborn
+rich
+
+# Flask backend (for integration with front end)
+Flask
+flask-cors
