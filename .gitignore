@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+venv/
+.env
+*.egg-info/
+
+# Data
+data/raw/
+data/processed/
+!data/README.md  # keep readme for structure
+
+# Models
+models/
+!models/README.md
+
+# Logs and outputs
+logs/
+*.log
+
+# IDE stuff
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
